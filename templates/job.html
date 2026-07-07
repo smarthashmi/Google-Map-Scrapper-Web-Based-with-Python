@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+{% block title %}{{ job.name }} — Business Scraper{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ job.name }}</h1>
+    <p class="subtitle">Job ID: {{ job.id }} &middot; Created {{ job.created_at[:10] }}</p>
+  </div>
+  <div class="header-actions">
+    <span class="badge badge-lg badge-{{ job.live_progress.status if job.live_progress else job.status }}" id="status-badge">
+      {{ job.live_progress.status if job.live_progress else job.status }}
+    </span>
+  </div>
+</div>
+
+<div class="job-layout">
+  <div class="job-main">
+    <div class="card">
+      <h2>Progress</h2>
+      <div class="progress-stats" id="progress-stats">
+        <div class="stat">
+          <span class="stat-value" id="stat-records">{{ job.progress.total_records if job.progress else 0 }}</span>
+          <span class="stat-label">Records</span>
+        </div>
+        <div class="stat">
+          <span class="stat-value" id="stat-completed">{{ job.progress.completed_searches if job.progress else 0 }}</span>
+          <span class="stat-label">Searches done</span>
+        </div>
+        <div class="stat">
+          <span class="stat-value" id="stat-pending">{{ job.progress.pending_searches if job.progress else '—' }}</span>
+          <span class="stat-label">Remaining</span>
+        </div>
+      </div>
+
+      <div class="progress-bar-wrap">
+        <div class="progress-bar" id="progress-bar" style="width: 0%"></div>
+      </div>
+
+      <div class="current-task" id="current-task">
+        {% if job.progress and job.progress.current_state %}
+        Scraping: {{ job.progress.current_category }} in {{ job.progress.current_city }}, {{ job.progress.current_state }}
+        {% else %}
+        Waiting to start...
+        {% endif %}
+      </div>
+
+      <div class="action-bar">
+        <button class="btn btn-success" id="btn-resume" onclick="resumeJob()"
+          {% if job.status in ['running', 'completed'] and not (job.live_progress and job.live_progress.status == 'stopped') %}hidden{% endif %}>Resume Scraping</button>
+        <button class="btn btn-danger" id="btn-stop" onclick="stopJob()" {% if not (job.live_progress and job.live_progress.status == 'running') and job.status != 'running' %}hidden{% endif %}>Stop</button>
+        {% if authenticated %}
+        <a href="{{ url_for('job_data', job_id=job.id) }}" class="btn btn-secondary">View All Data</a>
+        {% else %}
+        <a href="{{ url_for('login', next=url_for('job_data', job_id=job.id)) }}" class="btn btn-secondary">Login to View Data</a>
+        {% endif %}
+        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Back to Dashboard</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Live Scraped Data</h2>
+      <div class="table-wrap">
+        <table class="data-table" id="live-table">
+          <thead>
+            <tr>
+              <th>Business</th>
+              <th>Phone</th>
+              <th>Email</th>
+              <th>City / County</th>
+              <th>Coordinates</th>
+              <th>Rating</th>
+            </tr>
+          </thead>
+          <tbody id="live-records-body">
+            <tr><td colspan="6" class="muted">Waiting for data...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Activity Log</h2>
+      <pre class="log-panel" id="log-panel">Loading...</pre>
+    </div>
+
+    <div class="card error-card">
+      <h2>Error Log</h2>
+      <pre class="log-panel error-log" id="error-panel">No errors</pre>
+    </div>
+  </div>
+
+  <div class="job-sidebar">
+    <div class="card">
+      <h2>Configuration</h2>
+      <div class="meta-row"><span>States</span><span>{{ job.states | join(', ') }}</span></div>
+      <div class="meta-row"><span>Businesses</span><span>{{ job.businesses | map(attribute='name') | join(', ') }}</span></div>
+      <div class="meta-row"><span>Target</span><span>{{ job.target_records }}</span></div>
+      <div class="meta-row"><span>Coverage</span><span>{{ 'City & county grid' if job.search_mode == 'cities' else 'State lat/lng grid' }}</span></div>
+      <div class="meta-row"><span>Grid density</span><span>{{ job.grid_density|default('standard') }}</span></div>
+      <div class="meta-row"><span>Min rating</span><span>{{ job.min_rating|default(0) }}</span></div>
+      <div class="meta-row"><span>Min reviews</span><span>{{ job.min_reviews|default(0) }}</span></div>
+      <div class="meta-row"><span>Runners</span><span>{{ job.runners|default(1) }}</span></div>
+    </div>
+
+    <div class="card">
+      <h2>Downloads <small class="muted">(login required)</small></h2>
+      <div class="download-list">
+        {% if authenticated %}
+        <a href="{{ url_for('download_file', job_id=job.id, filename='businesses.csv') }}" class="btn btn-secondary btn-block">All Businesses (CSV)</a>
+        <a href="{{ url_for('download_file', job_id=job.id, filename='contacts.csv') }}" class="btn btn-secondary btn-block">Contacts (CSV)</a>
+        <a href="{{ url_for('download_file', job_id=job.id, filename='phones.txt') }}" class="btn btn-secondary btn-block">Phones (TXT)</a>
+        <a href="{{ url_for('download_file', job_id=job.id, filename='emails.txt') }}" class="btn btn-secondary btn-block">Emails (TXT)</a>
+        {% else %}
+        <a href="{{ url_for('login', next=url_for('download_file', job_id=job.id, filename='businesses.csv')) }}" class="btn btn-secondary btn-block">Login to Download</a>
+        {% endif %}
+      </div>
+      <p class="muted small">Exports in <code>by_state/</code>, <code>by_city/</code>, and <code>by_county/</code> folders</p>
+    </div>
+
+    <div class="card">
+      <h2>Scrape History</h2>
+      <div class="history-list" id="history-list">
+        {% for entry in history | reverse %}
+        <div class="history-item">
+          <div class="history-time">{{ entry.timestamp }}</div>
+          <div><strong>{{ entry.category }}</strong> — {{ entry.city }}{% if entry.county %}, {{ entry.county }} County{% endif %}, {{ entry.state }}</div>
+          {% if entry.latitude %}<div class="muted small">@ {{ entry.latitude }}, {{ entry.longitude }}</div>{% endif %}
+          <div class="muted">+{{ entry.new_records }} records (total {{ entry.total_records }})</div>
+        </div>
+        {% else %}
+        <p class="muted">No history yet. History builds as each search completes.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const JOB_ID = '{{ job.id }}';
+
+function esc(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+async function resumeJob() {
+  const res = await fetch(`/api/jobs/${JOB_ID}/resume`, { method: 'POST' });
+  const data = await res.json();
+  if (!data.ok) alert(data.error || 'Could not resume');
+  else pollStatus();
+}
+
+async function stopJob() {
+  const btn = document.getElementById('btn-stop');
+  if (btn) { btn.disabled = true; btn.textContent = 'Stopping...'; }
+  const res = await fetch(`/api/jobs/${JOB_ID}/stop`, { method: 'POST' });
+  const data = await res.json();
+  if (!data.ok) alert(data.error || 'Could not stop');
+  pollStatus();
+}
+
+function updateUI(data) {
+  const job = data.job;
+  const prog = job.live_progress || job.progress || {};
+  document.getElementById('stat-records').textContent = prog.total_records || 0;
+  document.getElementById('stat-completed').textContent = prog.completed_searches || 0;
+  document.getElementById('stat-pending').textContent = prog.pending_searches ?? '—';
+
+  const total = prog.total_searches || 1;
+  const done = prog.completed_searches || 0;
+  document.getElementById('progress-bar').style.width = Math.min(100, (done / total) * 100) + '%';
+
+  const badge = document.getElementById('status-badge');
+  badge.textContent = prog.status || job.status;
+  badge.className = 'badge badge-lg badge-' + (prog.status || job.status);
+
+  if (prog.current_state) {
+    const county = prog.current_county ? `, ${prog.current_county} County` : '';
+    const coords = prog.current_lat ? ` @ ${prog.current_lat}, ${prog.current_lng}` : '';
+    document.getElementById('current-task').textContent =
+      `Scraping: ${prog.current_category} in ${prog.current_city}${county}, ${prog.current_state}${coords}`;
+  }
+
+  document.getElementById('btn-stop').hidden = !data.running;
+  const resumeBtn = document.getElementById('btn-resume');
+  if (resumeBtn) {
+    const st = data.running ? 'running' : (prog.status || job.status);
+    resumeBtn.hidden = data.running || st === 'completed';
+    resumeBtn.disabled = false;
+  }
+  const stopBtn = document.getElementById('btn-stop');
+  if (stopBtn && data.running) {
+    stopBtn.disabled = false;
+    stopBtn.textContent = 'Stop';
+  }
+
+  if (data.record_count !== undefined) {
+    document.getElementById('stat-records').textContent = data.record_count;
+  }
+
+  if (data.logs && data.logs.length) {
+    document.getElementById('log-panel').textContent = data.logs.join('\n');
+    const panel = document.getElementById('log-panel');
+    panel.scrollTop = panel.scrollHeight;
+  }
+
+  if (data.errors && data.errors.length) {
+    document.getElementById('error-panel').textContent = data.errors.join('\n');
+  } else {
+    document.getElementById('error-panel').textContent = 'No errors';
+  }
+
+  if (data.live_records && data.live_records.length) {
+    document.getElementById('live-records-body').innerHTML = [...data.live_records].reverse().map(r => `
+      <tr>
+        <td><strong>${esc(r.name)}</strong><br><small class="muted">${esc(r.category)}</small></td>
+        <td>${esc(r.phone) || '—'}</td>
+        <td>${esc(r.email) || '—'}</td>
+        <td>${esc(r.city)}, ${esc(r.state)}${r.county ? '<br><small>' + esc(r.county) + ' County</small>' : ''}</td>
+        <td><small>${r.lat && r.lng ? esc(r.lat) + ', ' + esc(r.lng) : '—'}</small></td>
+        <td>${r.rating ? esc(r.rating) + ' ★' : '—'}${r.reviews ? '<br><small>' + esc(r.reviews) + ' reviews</small>' : ''}</td>
+      </tr>
+    `).join('');
+  }
+
+  if (data.history && data.history.length) {
+    document.getElementById('history-list').innerHTML = [...data.history].reverse().map(e => `
+      <div class="history-item">
+        <div class="history-time">${e.timestamp}</div>
+        <div><strong>${e.category}</strong> — ${e.city}${e.county ? ', ' + e.county + ' County' : ''}, ${e.state}</div>
+        ${e.latitude ? `<div class="muted small">@ ${e.latitude}, ${e.longitude}</div>` : ''}
+        <div class="muted">+${e.new_records} records (total ${e.total_records})</div>
+      </div>
+    `).join('');
+  }
+}
+
+async function pollStatus() {
+  try {
+    const res = await fetch(`/api/jobs/${JOB_ID}/status`);
+    const data = await res.json();
+    if (data.ok) updateUI(data);
+    const status = (data.job && (data.job.live_progress || data.job.progress || {}).status) || data.job?.status;
+    if (data.running || ['running', 'ready'].includes(status)) {
+      setTimeout(pollStatus, 1500);
+    } else if (status === 'stopped') {
+      setTimeout(pollStatus, 4000);
+    }
+  } catch (e) {
+    setTimeout(pollStatus, 5000);
+  }
+}
+
+pollStatus();
+</script>
+{% endblock %}

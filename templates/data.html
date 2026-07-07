@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}{% if scope == 'all' %}All Scraped Data{% else %}{{ job.name }} Data{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{% if scope == 'all' %}All Scraped Data{% else %}{{ job.name }}{% endif %}</h1>
+    <p class="subtitle">{{ data.total }} records — page {{ data.page }} of {{ data.pages }}</p>
+  </div>
+  <div class="header-actions">
+    {% if scope == 'job' %}
+    <a href="{{ url_for('job_detail', job_id=job.id) }}" class="btn btn-secondary">Back to Job</a>
+    <a href="{{ url_for('download_file', job_id=job.id, filename='businesses.csv') }}" class="btn btn-primary">Download CSV</a>
+    {% else %}
+    <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Dashboard</a>
+    {% endif %}
+  </div>
+</div>
+
+{% if data.total == 0 %}
+<div class="empty-state card">
+  <h2>No scraped data yet</h2>
+  <p>Start a scrape job first. Data will appear here automatically as businesses are collected.</p>
+  <a href="{{ url_for('new_job_wizard') }}" class="btn btn-primary">Start New Scrape</a>
+</div>
+{% else %}
+<div class="card">
+  <div class="table-wrap data-page-table">
+    <table class="data-table">
+      <thead>
+        <tr>
+          {% if scope == 'all' %}<th>Job</th>{% endif %}
+          <th>Business</th>
+          <th>Phone</th>
+          <th>Email</th>
+          <th>City</th>
+          <th>County</th>
+          <th>State</th>
+          <th>Rating</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in data.records %}
+        <tr>
+          {% if scope == 'all' %}
+          <td><small>{{ row['job_name']|default('') }}</small></td>
+          {% endif %}
+          <td><strong>{{ row['Business Name']|default('') }}</strong><br><small class="muted">{{ row['Category']|default('') }}</small></td>
+          <td>{{ row['Phone']|default('') or '—' }}</td>
+          <td>{{ row['Email']|default('') or '—' }}</td>
+          <td>{{ row['City']|default('') }}</td>
+          <td>{{ row['County']|default('') or '—' }}</td>
+          <td>{{ row['State']|default('') }}</td>
+          <td>{{ row['Rating']|default('') or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if data.pages > 1 %}
+  <div class="pagination">
+    {% if data.page > 1 %}
+    <a href="?page={{ data.page - 1 }}" class="btn btn-secondary btn-sm">Previous</a>
+    {% endif %}
+    <span class="muted">Page {{ data.page }} / {{ data.pages }}</span>
+    {% if data.page < data.pages %}
+    <a href="?page={{ data.page + 1 }}" class="btn btn-secondary btn-sm">Next</a>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

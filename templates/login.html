@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Login — Business Scraper{% endblock %}
+
+{% block content %}
+<div class="login-wrap">
+  <div class="card login-card">
+    <h1>Sign in</h1>
+    <p class="subtitle">Required to view or download scraped business data</p>
+    {% if error %}
+    <div class="error-msg">{{ error }}</div>
+    {% endif %}
+    <form method="post" class="login-form" action="{{ url_for('login', next=request.args.get('next', '')) }}">
+      <input type="hidden" name="next" value="{{ request.args.get('next', '') }}">
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" name="email" required autocomplete="username" placeholder="your@email.com">
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" name="password" required autocomplete="current-password" placeholder="Password">
+      </div>
+      <button type="submit" class="btn btn-primary btn-block">Sign in</button>
+    </form>
+    <p class="muted small" style="margin-top:1rem;">After login you go to the CRM Dashboard to view files, assign leads, and export.</p>
+  </div>
+</div>
+{% endblock %}

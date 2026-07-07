@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+{% block title %}Manage Leads — CRM{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Manage Leads</h1>
+    <p class="subtitle">Pick quantity → assign → comment → export</p>
+  </div>
+  <a href="{{ url_for('crm_dashboard') }}" class="btn btn-secondary">CRM Dashboard</a>
+</div>
+
+<div class="stats-grid stats-grid-sm">
+  <div class="stat-card stat-available"><span class="stat-value">{{ stats.available }}</span><span class="stat-label">Available</span></div>
+  <div class="stat-card stat-assigned"><span class="stat-value">{{ stats.assigned }}</span><span class="stat-label">Assigned</span></div>
+  <div class="stat-card stat-exported"><span class="stat-value">{{ stats.exported }}</span><span class="stat-label">Exported</span></div>
+</div>
+
+<div class="card crm-toolbar">
+  <h2>Pick &amp; Assign</h2>
+  <div class="form-row" style="align-items:flex-end;">
+    <div class="form-group">
+      <label>How many leads?</label>
+      <input type="number" id="pick-qty" value="10" min="1" max="5000">
+    </div>
+    <div class="form-group">
+      <label>From job</label>
+      <select id="pick-job">
+        <option value="">All jobs</option>
+        {% for job in jobs %}
+        <option value="{{ job.id }}" {% if filter_job_id == job.id %}selected{% endif %}>{{ job.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button class="btn btn-primary" id="btn-pick">Pick Leads</button>
+  </div>
+  <div class="form-row" style="align-items:flex-end; margin-top:1rem;">
+    <div class="form-group flex-1">
+      <label>Assign to</label>
+      <input type="text" id="assign-to" value="{{ session.get('email', '') }}" placeholder="Your name or team">
+    </div>
+    <div class="form-group flex-2">
+      <label>Comment</label>
+      <input type="text" id="assign-comment" placeholder="e.g. Called, interested, follow up Friday">
+    </div>
+    <button class="btn btn-success" id="btn-assign">Assign Selected</button>
+    <button class="btn btn-secondary" id="btn-export">Export Selected</button>
+    <button class="btn btn-secondary" id="btn-release">Release Selected</button>
+    <button class="btn btn-danger" id="btn-delete">Delete Selected</button>
+  </div>
+  <p id="pick-result" class="field-hint" style="margin-top:0.75rem;"></p>
+</div>
+
+<div class="card" style="margin-top:1.5rem;">
+  <div class="crm-filters">
+    <label>Filter:</label>
+    <a href="{{ url_for('crm_leads', status='available', job_id=filter_job_id) }}" class="btn btn-sm {% if filter_status=='available' %}btn-primary{% else %}btn-secondary{% endif %}">Available</a>
+    <a href="{{ url_for('crm_leads', status='assigned', job_id=filter_job_id) }}" class="btn btn-sm {% if filter_status=='assigned' %}btn-primary{% else %}btn-secondary{% endif %}">Assigned</a>
+    <a href="{{ url_for('crm_leads', status='exported', job_id=filter_job_id) }}" class="btn btn-sm {% if filter_status=='exported' %}btn-primary{% else %}btn-secondary{% endif %}">Exported</a>
+    <a href="{{ url_for('crm_leads', status='all', job_id=filter_job_id) }}" class="btn btn-sm {% if filter_status=='all' %}btn-primary{% else %}btn-secondary{% endif %}">All</a>
+    <span class="muted">{{ data.total }} leads</span>
+  </div>
+
+  <div class="table-wrap data-page-table">
+    <table class="data-table" id="leads-table">
+      <thead>
+        <tr>
+          <th><input type="checkbox" id="select-all"></th>
+          <th>Status</th>
+          <th>Business</th>
+          <th>Phone</th>
+          <th>Email</th>
+          <th>Location</th>
+          <th>Assigned To</th>
+          <th>Comment</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for lead in data.leads %}
+        <tr class="lead-row lead-{{ lead.status }}" data-id="{{ lead.id }}">
+          <td><input type="checkbox" class="lead-cb" value="{{ lead.id }}"></td>
+          <td><span class="badge badge-{{ lead.status }}">{{ lead.status }}</span></td>
+          <td><strong>{{ lead.business_name }}</strong><br><small class="muted">{{ lead.category }} · {{ lead.job_name }}</small></td>
+          <td>{{ lead.phone or '—' }}</td>
+          <td>{{ lead.email or '—' }}</td>
+          <td>{{ lead.city }}, {{ lead.state }}</td>
+          <td>{{ lead.assigned_to or '—' }}</td>
+          <td>
+            <input type="text" class="comment-input" data-id="{{ lead.id }}" value="{{ lead.comment }}" placeholder="Add comment...">
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" class="muted">No leads in this filter. Try syncing or change filter.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if data.pages > 1 %}
+  <div class="pagination">
+    {% if data.page > 1 %}
+    <a href="?status={{ filter_status }}&job_id={{ filter_job_id }}&page={{ data.page - 1 }}" class="btn btn-secondary btn-sm">Previous</a>
+    {% endif %}
+    <span class="muted">Page {{ data.page }} / {{ data.pages }}</span>
+    {% if data.page < data.pages %}
+    <a href="?status={{ filter_status }}&job_id={{ filter_job_id }}&page={{ data.page + 1 }}" class="btn btn-secondary btn-sm">Next</a>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function selectedIds() {
+  return [...document.querySelectorAll('.lead-cb:checked')].map(cb => cb.value);
+}
+
+document.getElementById('select-all')?.addEventListener('change', (e) => {
+  document.querySelectorAll('.lead-cb').forEach(cb => cb.checked = e.target.checked);
+});
+
+document.getElementById('btn-pick').addEventListener('click', async () => {
+  const qty = parseInt(document.getElementById('pick-qty').value) || 10;
+  const job_id = document.getElementById('pick-job').value || null;
+  const res = await fetch('/api/crm/pick', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ quantity: qty, job_id }),
+  });
+  const data = await res.json();
+  const el = document.getElementById('pick-result');
+  if (!data.ok) { el.textContent = 'Pick failed'; return; }
+  document.querySelectorAll('.lead-cb').forEach(cb => cb.checked = false);
+  data.leads.forEach(lead => {
+    const cb = document.querySelector(`.lead-cb[value="${lead.id}"]`);
+    if (cb) cb.checked = true;
+    else {
+      const row = document.createElement('tr');
+      row.className = `lead-row lead-${lead.status}`;
+      row.dataset.id = lead.id;
+      row.innerHTML = `<td><input type="checkbox" class="lead-cb" value="${lead.id}" checked></td>
+        <td><span class="badge badge-${lead.status}">${lead.status}</span></td>
+        <td><strong>${lead.business_name}</strong></td><td>${lead.phone||'—'}</td><td>${lead.email||'—'}</td>
+        <td>${lead.city}, ${lead.state}</td><td>—</td><td></td>`;
+      document.querySelector('#leads-table tbody').prepend(row);
+    }
+  });
+  el.textContent = `Picked ${data.count} available leads — now click Assign Selected`;
+});
+
+document.getElementById('btn-assign').addEventListener('click', async () => {
+  const ids = selectedIds();
+  if (!ids.length) return alert('Select or pick leads first');
+  const res = await fetch('/api/crm/assign', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({
+      lead_ids: ids,
+      assigned_to: document.getElementById('assign-to').value,
+      comment: document.getElementById('assign-comment').value,
+    }),
+  });
+  const data = await res.json();
+  if (data.ok) location.reload();
+  else alert(data.error || 'Assign failed');
+});
+
+document.getElementById('btn-export').addEventListener('click', async () => {
+  const ids = selectedIds();
+  if (!ids.length) return alert('Select leads first');
+  const res = await fetch('/api/crm/export', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ lead_ids: ids, label: 'crm_export' }),
+  });
+  const data = await res.json();
+  if (data.ok) {
+    window.location.href = `/crm/download/${data.filename}`;
+    setTimeout(() => location.reload(), 1000);
+  } else alert(data.error || 'Export failed');
+});
+
+document.getElementById('btn-release').addEventListener('click', async () => {
+  const ids = selectedIds();
+  if (!ids.length || !confirm('Release selected leads back to available?')) return;
+  await fetch('/api/crm/release', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({lead_ids:ids}) });
+  location.reload();
+});
+
+document.getElementById('btn-delete').addEventListener('click', async () => {
+  const ids = selectedIds();
+  if (!ids.length || !confirm('Delete selected leads from CRM?')) return;
+  await fetch('/api/crm/delete', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({lead_ids:ids}) });
+  location.reload();
+});
+
+document.querySelectorAll('.comment-input').forEach(input => {
+  input.addEventListener('change', async () => {
+    await fetch('/api/crm/comment', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ lead_id: input.dataset.id, comment: input.value }),
+    });
+  });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}CRM Dashboard — Business Scraper{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Lead CRM Dashboard</h1>
+    <p class="subtitle">Scraped files, downloads, assign leads &amp; track status</p>
+  </div>
+  <div class="header-actions">
+    <a href="{{ url_for('crm_leads') }}" class="btn btn-primary">Manage Leads</a>
+    <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Scraper Jobs</a>
+  </div>
+</div>
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <span class="stat-value">{{ stats.total }}</span>
+    <span class="stat-label">Total Leads</span>
+  </div>
+  <div class="stat-card stat-available">
+    <span class="stat-value">{{ stats.available }}</span>
+    <span class="stat-label">Available</span>
+  </div>
+  <div class="stat-card stat-assigned">
+    <span class="stat-value">{{ stats.assigned }}</span>
+    <span class="stat-label">Assigned</span>
+  </div>
+  <div class="stat-card stat-exported">
+    <span class="stat-value">{{ stats.exported }}</span>
+    <span class="stat-label">Exported</span>
+  </div>
+</div>
+
+{% if stats.last_sync %}
+<p class="muted small" style="margin-bottom:1.5rem;">Last synced: {{ stats.last_sync }}</p>
+{% endif %}
+
+<h2 style="margin-bottom:1rem;">Scrape Jobs &amp; Files</h2>
+
+{% if summaries %}
+<div class="crm-jobs-list">
+  {% for s in summaries %}
+  <div class="card crm-job-card">
+    <div class="card-header">
+      <h3>{{ s.job.name }}</h3>
+      <span class="badge badge-{{ s.job.live_status or s.job.status }}">{{ s.job.live_status or s.job.status }}</span>
+    </div>
+    <div class="card-body">
+      <div class="crm-counts">
+        <span class="crm-count"><strong>{{ s.total }}</strong> total</span>
+        <span class="crm-count available">{{ s.available }} free</span>
+        <span class="crm-count assigned">{{ s.assigned }} assigned</span>
+        <span class="crm-count exported">{{ s.exported }} exported</span>
+      </div>
+      <div class="meta-row"><span>Scrape status</span><span>{{ s.job.status|title }}</span></div>
+      <div class="meta-row"><span>Records scraped</span><span>{{ s.job.record_count or 0 }}</span></div>
+      <div class="meta-row"><span>Created</span><span>{{ s.job.created_at[:10] }}</span></div>
+    </div>
+    <div class="card-actions">
+      {% if s.files %}
+      {% for f in s.files %}
+      <a href="{{ url_for('download_file', job_id=s.job.id, filename=f) }}" class="btn btn-secondary btn-sm">{{ f }}</a>
+      {% endfor %}
+      {% endif %}
+      <a href="{{ url_for('crm_leads', job_id=s.job.id, status='available') }}" class="btn btn-primary btn-sm">Pick Leads</a>
+      <a href="{{ url_for('job_detail', job_id=s.job.id) }}" class="btn btn-secondary btn-sm">Monitor</a>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state card">
+  <h2>No scraped data yet</h2>
+  <p>Run a scrape job first. Data will sync here automatically.</p>
+  <a href="{{ url_for('new_job_wizard') }}" class="btn btn-primary">Start Scrape</a>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Business Scraper{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-brand">
+      <span class="logo">&#9670;</span>
+      Business Scraper
+    </div>
+    <div class="nav-links">
+      <a href="{{ url_for('dashboard') }}" class="{% if request.endpoint == 'dashboard' %}active{% endif %}">Scraper</a>
+      {% if session.get('authenticated') %}
+      <a href="{{ url_for('crm_dashboard') }}" class="{% if request.endpoint in ['crm_dashboard','crm_leads'] %}active{% endif %}">CRM</a>
+      <a href="{{ url_for('logout') }}" class="btn btn-secondary btn-sm">Logout</a>
+      {% else %}
+      <a href="{{ url_for('login', next=url_for('crm_dashboard')) }}" class="btn btn-secondary btn-sm">Login</a>
+      {% endif %}
+      <a href="{{ url_for('new_job_wizard') }}" class="btn btn-primary btn-sm">+ New Scrape</a>
+    </div>
+  </nav>
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

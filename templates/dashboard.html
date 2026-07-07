@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Business Scraper{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Scrape Jobs</h1>
+    <p class="subtitle">Manage, resume, and download your business lead scrapes</p>
+  </div>
+  <div class="header-actions" style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+    {% if authenticated %}
+    <a href="{{ url_for('crm_dashboard') }}" class="btn btn-primary">CRM Dashboard</a>
+    {% else %}
+    <a href="{{ url_for('login', next=url_for('crm_dashboard')) }}" class="btn btn-secondary">Login for CRM</a>
+    {% endif %}
+    <a href="{{ url_for('new_job_wizard') }}" class="btn btn-primary">Start New Scrape</a>
+  </div>
+</div>
+
+{% if jobs %}
+<div class="jobs-grid">
+  {% for job in jobs %}
+  <div class="card job-card" id="job-card-{{ job.id }}">
+    <div class="card-header">
+      <h3>{{ job.name }}</h3>
+      <span class="badge badge-{{ job.live_status or job.status }}" id="badge-{{ job.id }}">{{ job.live_status or job.status }}</span>
+    </div>
+    <div class="card-body">
+      <div class="meta-row">
+        <span>States:</span>
+        <span>
+          {% if job.states|length <= 4 %}
+            {{ job.states | join(', ') }}
+          {% else %}
+            {{ job.states[:3] | join(', ') }} +{{ job.states|length - 3 }} more
+          {% endif %}
+        </span>
+      </div>
+      <div class="meta-row">
+        <span>Businesses:</span>
+        <span>{{ job.businesses | map(attribute='name') | join(', ') }}</span>
+      </div>
+      <div class="meta-row">
+        <span>Records:</span>
+        <span id="records-{{ job.id }}">{{ job.record_count or 0 }} / {{ job.target_records }}</span>
+      </div>
+      <div class="meta-row">
+        <span>Created:</span>
+        <span>{{ job.created_at[:10] }}</span>
+      </div>
+    </div>
+    <div class="card-actions">
+      <a href="{{ url_for('job_detail', job_id=job.id) }}" class="btn btn-secondary btn-sm">Monitor</a>
+      {% if authenticated %}
+      <a href="{{ url_for('job_data', job_id=job.id) }}" class="btn btn-secondary btn-sm">View Data</a>
+      {% else %}
+      <a href="{{ url_for('login', next=url_for('job_data', job_id=job.id)) }}" class="btn btn-secondary btn-sm">View Data</a>
+      {% endif %}
+      <button class="btn btn-success btn-sm btn-resume" id="resume-{{ job.id }}" data-id="{{ job.id }}"
+        {% if job.live_status == 'running' or job.status == 'completed' %}hidden{% endif %}>Resume</button>
+      <button class="btn btn-danger btn-sm btn-stop" id="stop-{{ job.id }}" data-id="{{ job.id }}"
+        {% if job.live_status != 'running' %}hidden{% endif %}>Stop</button>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state card">
+  <h2>No scrape jobs yet</h2>
+  <p>Create your first job to scrape business leads from Google Maps across multiple states.</p>
+  <a href="{{ url_for('new_job_wizard') }}" class="btn btn-primary">Create First Job</a>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function resumeJob(id) {
+  const btn = document.getElementById('resume-' + id);
+  if (btn) btn.disabled = true;
+  const res = await fetch(`/api/jobs/${id}/resume`, { method: 'POST' });
+  const data = await res.json();
+  if (data.ok) window.location.href = `/job/${id}`;
+  else { alert(data.error || 'Could not resume'); if (btn) btn.disabled = false; }
+}
+
+async function stopJob(id) {
+  const btn = document.getElementById('stop-' + id);
+  if (btn) { btn.disabled = true; btn.textContent = 'Stopping...'; }
+  const res = await fetch(`/api/jobs/${id}/stop`, { method: 'POST' });
+  const data = await res.json();
+  if (!data.ok) alert(data.error || 'Could not stop');
+  setTimeout(() => location.reload(), 800);
+}
+
+document.querySelectorAll('.btn-resume').forEach(btn => {
+  btn.addEventListener('click', () => resumeJob(btn.dataset.id));
+});
+document.querySelectorAll('.btn-stop').forEach(btn => {
+  btn.addEventListener('click', () => stopJob(btn.dataset.id));
+});
+
+{% if jobs %}
+setInterval(async () => {
+  {% for job in jobs %}
+  try {
+    const res = await fetch('/api/jobs/{{ job.id }}/status');
+    const data = await res.json();
+    if (!data.ok) return;
+    const badge = document.getElementById('badge-{{ job.id }}');
+    const status = data.running ? 'running' : (data.job.status || 'stopped');
+    if (badge) { badge.textContent = status; badge.className = 'badge badge-' + status; }
+    const rec = document.getElementById('records-{{ job.id }}');
+    if (rec && data.record_count !== undefined) rec.textContent = data.record_count + ' / {{ job.target_records }}';
+    const stopBtn = document.getElementById('stop-{{ job.id }}');
+    const resumeBtn = document.getElementById('resume-{{ job.id }}');
+    if (stopBtn) stopBtn.hidden = !data.running;
+    if (resumeBtn) resumeBtn.hidden = data.running || status === 'completed';
+  } catch (e) {}
+  {% endfor %}
+}, 3000);
+{% endif %}
+</script>
+{% endblock %}

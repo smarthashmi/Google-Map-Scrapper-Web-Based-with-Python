@@ -13,6 +13,7 @@ import pandas as pd
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import sync_playwright
 
+from app.browser import launch_chromium
 from app.config import CSV_COLUMNS
 from app.geocoder import (
     get_locations_for_state,
@@ -665,7 +666,7 @@ class ScraperEngine:
     def _worker_loop(self, worker_id: int, task_queue: Queue, shared: dict) -> None:
         try:
             with sync_playwright() as playwright:
-                browser = playwright.chromium.launch(headless=self.headless, channel="chrome")
+                browser = launch_chromium(playwright, headless=self.headless)
                 self.register_browser(browser)
                 context = browser.new_context(viewport={"width": 1400, "height": 900}, locale="en-US")
                 page = context.new_page()
@@ -726,7 +727,7 @@ class ScraperEngine:
 
         if self.runners <= 1:
             with sync_playwright() as playwright:
-                browser = playwright.chromium.launch(headless=self.headless, channel="chrome")
+                browser = launch_chromium(playwright, headless=self.headless)
                 self.register_browser(browser)
                 context = browser.new_context(viewport={"width": 1400, "height": 900}, locale="en-US")
                 page = context.new_page()

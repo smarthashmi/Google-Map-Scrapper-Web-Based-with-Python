@@ -363,4 +363,5 @@ def run_server(open_browser: bool = True):
 
 
 if __name__ == "__main__":
-    run_server(open_browser=True)
+    import os
+    run_server(open_browser=os.environ.get("OPEN_BROWSER", "").lower() in ("1", "true", "yes"))

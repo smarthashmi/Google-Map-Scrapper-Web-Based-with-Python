@@ -1,0 +1,21 @@
+[Unit]
+Description=Google Map Scraper (Flask + Playwright)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/map-scraper
+Environment=OPEN_BROWSER=0
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/map-scraper/venv/bin/python -m app.web
+Restart=always
+RestartSec=10
+
+# Keep resource usage low — getclover runs on the same 2 GB VPS
+MemoryMax=900M
+MemoryHigh=750M
+CPUQuota=80%
+
+[Install]
+WantedBy=multi-user.target

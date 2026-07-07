@@ -36,6 +36,8 @@ fi
 source "$APP_DIR/venv/bin/activate"
 pip install -q --upgrade pip
 pip install -q -r requirements.txt
+# Pin for older VPS CPUs (QEMU without x86-v2)
+pip install -q "numpy==1.26.4" "pandas==2.2.3"
 
 # Playwright Chromium (lighter than Chrome on Linux)
 python -m playwright install chromium

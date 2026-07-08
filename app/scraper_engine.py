@@ -52,7 +52,13 @@ def normalize_phone(phone: str) -> str:
     if not phone:
         return ""
     phone = phone.strip()
+    compact = re.sub(r"[\s().-]", "", phone)
     digits = re.sub(r"\D", "", phone)
+    # Exclude Pakistan numbers from all outputs.
+    if compact.startswith("+92") or digits.startswith("0092") or (
+        digits.startswith("92") and len(digits) > 10
+    ):
+        return ""
     if len(digits) == 11 and digits.startswith("1"):
         digits = digits[1:]
     if len(digits) == 10:
@@ -552,7 +558,9 @@ class ScraperEngine:
 
     def _save_contact_lists(self, df: pd.DataFrame) -> None:
         df = df.copy()
-        df["Phone"] = df["Phone"].apply(clean_contact_field)
+        df["Phone"] = df["Phone"].apply(
+            lambda value: normalize_phone(clean_contact_field(value))
+        )
         df["Email"] = df["Email"].apply(clean_contact_field)
         phones = df["Phone"].replace("", pd.NA).dropna().drop_duplicates().tolist()
         emails = df["Email"].replace("", pd.NA).dropna().drop_duplicates().tolist()
@@ -589,6 +597,10 @@ class ScraperEngine:
         for col in CSV_COLUMNS:
             if col not in df.columns:
                 df[col] = ""
+        if "Phone" in df.columns:
+            df["Phone"] = df["Phone"].apply(
+                lambda value: normalize_phone(clean_contact_field(value))
+            )
         df = df[CSV_COLUMNS]
         df.to_csv(self.output_file, index=False, encoding="utf-8-sig")
         self._save_contact_lists(df)

@@ -20,13 +20,38 @@ def _run(cmd: list[str], label: str) -> bool:
         return False
 
 
+def _numpy_import_ok() -> bool:
+    try:
+        import numpy  # noqa: F401
+        import pandas  # noqa: F401
+
+        return True
+    except Exception:
+        return False
+
+
 def ensure_pip_packages() -> bool:
     if not REQUIREMENTS.exists():
         return True
-    return _run(
+    ok = _run(
         [sys.executable, "-m", "pip", "install", "-q", "-r", str(REQUIREMENTS)],
         "Installing Python packages",
     )
+    if ok and not _numpy_import_ok() and sys.version_info >= (3, 13):
+        ok = _run(
+            [
+                sys.executable,
+                "-m",
+                "pip",
+                "install",
+                "-q",
+                "--force-reinstall",
+                "numpy>=2.1.0",
+                "pandas>=2.2.3",
+            ],
+            "Repairing numpy/pandas for Python 3.13+",
+        )
+    return ok and _numpy_import_ok()
 
 
 def ensure_playwright_browser() -> bool:

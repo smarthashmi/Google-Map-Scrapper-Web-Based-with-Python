@@ -139,4 +139,11 @@ SPEED_PRESETS = {
         "delay_between_searches": 2.0,
         "delay_between_scrolls": 1.0,
     },
+    "aggressive": {
+        "label": "Aggressive — local power mode",
+        "runners": 6,
+        "delay_between_leads": 0.3,
+        "delay_between_searches": 0.8,
+        "delay_between_scrolls": 0.4,
+    },
 }

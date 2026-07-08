@@ -156,7 +156,7 @@ class ScraperEngine:
         self.headless = headless
         self.min_rating = float(min_rating or 0)
         self.min_reviews = int(min_reviews or 0)
-        self.runners = max(1, min(4, int(runners or 1)))
+        self.runners = max(1, min(6, int(runners or 1)))
         self.delay_between_leads = float(delay_between_leads)
         self.delay_between_searches = float(delay_between_searches)
         self.delay_between_scrolls = float(delay_between_scrolls)

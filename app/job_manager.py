@@ -109,7 +109,7 @@ class JobManager:
             "headless": headless,
             "min_rating": min_rating,
             "min_reviews": min_reviews,
-            "runners": max(1, min(4, int(runners))),
+            "runners": max(1, min(6, int(runners))),
             "speed_preset": speed_preset,
             "delay_between_leads": delay_between_leads,
             "delay_between_searches": delay_between_searches,
@@ -199,6 +199,16 @@ class JobManager:
             return {"ok": False, "error": "Job not found"}
         if self.is_running(job_id):
             return {"ok": False, "error": "Job is already running"}
+        running_job_ids = [
+            existing_id for existing_id, thread in self._threads.items()
+            if existing_id != job_id and thread is not None and thread.is_alive()
+        ]
+        if running_job_ids:
+            return {
+                "ok": False,
+                "error": "Another scrape job is already running. Stop it first to avoid overload.",
+                "running_job_id": running_job_ids[0],
+            }
 
         stop_event = threading.Event()
         self._stop_flags[job_id] = stop_event

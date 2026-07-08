@@ -49,11 +49,6 @@ def ensure_playwright_browser() -> bool:
 def ensure_all() -> bool:
     ok = ensure_pip_packages()
     ok = ensure_playwright_browser() and ok
-    if sys.platform != "win32":
-        _run(
-            [sys.executable, "-m", "playwright", "install-deps", "chromium"],
-            "Installing Playwright system dependencies",
-        )
     return ok
 
 
